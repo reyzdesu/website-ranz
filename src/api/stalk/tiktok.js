@@ -5,63 +5,105 @@ module.exports = function (app) {
     app.get('/stalk/tiktok', async (req, res) => {
         const { username } = req.query;
         if (!username) {
-            return res.status(400).json({ status: false, message: 'Parameter username diperlukan' });
+            return res.status(400).json({ 
+                status: false, 
+                message: 'Parameter username diperlukan' 
+            });
         }
 
-        try {
-            const response = await axios.get(`https://www.tiktok.com/@${username}?_t=ZS-8tHANz7ieoS&_r=1`, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-                }
-            });
+        try {  
+            const response = await axios.get(`https://www.tiktok.com/@${username}?_t=ZS-8tHANz7ieoS&_r=1`, {  
+                headers: {  
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'  
+                }  
+            });  
 
-            const html = response.data;
-            const $ = cheerio.load(html);
-            const scriptData = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html();
+            const html = response.data;  
+            const $ = cheerio.load(html);  
+            const scriptData = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html();  
 
-            if (!scriptData) {
-                return res.status(404).json({ status: false, message: 'User tidak ditemukan' });
-            }
+            if (!scriptData) {  
+                return res.status(404).json({ 
+                    status: false, 
+                    message: 'User tidak ditemukan' 
+                });  
+            }  
 
-            const parsedData = JSON.parse(scriptData);
-            const userDetail = parsedData.__DEFAULT_SCOPE__?.['webapp.user-detail'];
+            const parsedData = JSON.parse(scriptData);  
+            const userDetail = parsedData.__DEFAULT_SCOPE__?.['webapp.user-detail'];  
 
-            if (!userDetail || !userDetail.userInfo) {
-                return res.status(404).json({ status: false, message: 'User tidak ditemukan' });
-            }
+            if (!userDetail || !userDetail.userInfo) {  
+                return res.status(404).json({ 
+                    status: false, 
+                    message: 'User tidak ditemukan' 
+                });  
+            }  
 
-            const user = userDetail.userInfo.user;
-            const stats = userDetail.userInfo.stats;
+            const user = userDetail.userInfo.user;  
+            const stats = userDetail.userInfo.stats;  
 
-            res.status(200).json({
-                status: true,
-                data: {
-                    id: user.id,
-                    secUid: user.secUid,
-                    username: user.uniqueId,
-                    nickname: user.nickname,
-                    bio: user.signature,
-                    avatar: {
-                        thumb: user.avatarThumb,
-                        medium: user.avatarMedium,
-                        large: user.avatarLarger
-                    },
-                    verified: user.verified,
-                    private: user.privateAccount,
-                    region: user.region || null,
-                    stats: {
-                        followers: stats.followerCount,
-                        following: stats.followingCount,
-                        likes: stats.heartCount,
-                        totalHearts: stats.heart,
-                        videos: stats.videoCount
+            // 1. Tanggal Pembuatan Akun (createTime biasanya dalam format timestamp detik)
+            const createTime = user.createTime 
+                ? new Date(user.createTime * 1000).toISOString() 
+                : null;
+
+            // 2. Cek Waktu Perubahan Nickname (beberapa kemungkinan field)
+            const nicknameUpdateTime = user.nicknameUpdateTime 
+                ? new Date(user.nicknameUpdateTime * 1000).toISOString() 
+                : user.nickNameModifyTime 
+                    ? new Date(user.nickNameModifyTime * 1000).toISOString() 
+                    : null;
+
+            // 3. Fallback: Scraping dari HTML jika data tidak ada di scriptData
+            let nicknameLastUpdated = nicknameUpdateTime;
+            if (!nicknameLastUpdated) {
+                const nicknameElement = $('div[data-e2e="user-nickname"]');
+                if (nicknameElement.length > 0) {
+                    const tooltipText = nicknameElement.attr('title') || nicknameElement.attr('data-tooltip');
+                    if (tooltipText && tooltipText.includes('Diubah pada')) {
+                        const match = tooltipText.match(/Diubah pada (.+)/);
+                        if (match) nicknameLastUpdated = new Date(match[1]).toISOString();
                     }
                 }
-            });
+            }
 
-        } catch (error) {
-            res.status(500).json({
-                status: false,
+            res.status(200).json({  
+                status: true,  
+                creator: "reyz pemvokep",
+                data: {  
+                    id: user.id,  
+                    secUid: user.secUid,  
+                    username: user.uniqueId,  
+                    nickname: user.nickname,  
+                    bio: user.signature,  
+                    avatar: {  
+                        thumb: user.avatarThumb,  
+                        medium: user.avatarMedium,  
+                        large: user.avatarLarger  
+                    },  
+                    verified: user.verified,  
+                    private: user.privateAccount,  
+                    region: user.region || null,  
+                    accountCreatedAt: createTime,
+                    nicknameLastUpdated: nicknameLastUpdated || null, // Null jika tidak ditemukan
+                    stats: {  
+                        followers: stats.followerCount,  
+                        following: stats.followingCount,  
+                        likes: stats.heartCount,  
+                        totalHearts: stats.heart,  
+                        videos: stats.videoCount  
+                    }  
+                }  
+            });  
+
+        } catch (error) {  
+            res.status(500).json({  
+                status: false,  
+                message: error.message || 'Terjadi kesalahan saat mengambil data'  
+            });  
+        }  
+    });
+};                status: false,
                 message: error.message || 'Terjadi kesalahan saat mengambil data'
             });
         }
