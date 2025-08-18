@@ -103,9 +103,4 @@ module.exports = function (app) {
             });  
         }  
     });
-};                status: false,
-                message: error.message || 'Terjadi kesalahan saat mengambil data'
-            });
-        }
-    });
 };
